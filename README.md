@@ -4,6 +4,11 @@
     source <GeoNature_DIR>/backend/venv/bin/activate
     # depuis le répertoire API2GN
     pip install .
+    
+    pip install -e .
+    -> as mode dev
+
+    geonature install-gn-module ~/api2GN  API2GN 
 
 Copier le fichier d'exemple `var/config/parsers.example.py` en `var/config/parsers.py`
 
