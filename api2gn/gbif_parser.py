@@ -1,41 +1,57 @@
 from pygbif import occurrences, registry, species
 from geojson import Feature
 from shapely import wkt
+from sqlalchemy.sql import func
 from geoalchemy2.shape import from_shape
 from api2gn.parsers import JSONParser
+import requests
 
 class GBIFParser(JSONParser):
     srid = 4326
     progress_bar = False  # Assuming no progress bar is needed for a single request
 
-    def __init__(self, occurrence_id):
+    def __init__(self):
         # Initialize the parent class
-        super().__init__()
-        self.occurrence_id = occurrence_id
+        self.occurrence_id = 4407389321
         self.data = self.fetch_occurrence_data()
         self.organization_data = self.fetch_organization_data()
         self.dataset_data = self.fetch_dataset_data()
         self.species_data = self.fetch_species_data()
         self.subdivisions_data = self.fetch_subdivisions_data()
+
+        super().__init__()
+
+        # filter to have only new data
+        if self.parser_obj.last_import:
+            self.api_filters[
+                "filter_d_up_date_modification"
+            ] = self.parser_obj.last_import
         self.validate_mapping()
 
     def fetch_occurrence_data(self):
         response = occurrences.get(self.occurrence_id)
-        if response.get('status') == 'success':
+        print(response)  # Imprimez la réponse complète pour inspecter la structure
+        # Adaptez la gestion de la réponse en fonction de la structure observée
+        if 'results' in response and len(response['results']) > 0:
+            return response['results'][0]
+        elif 'data' in response:
             return response['data']
+        elif len(response) > 0:
+            return response
         else:
             raise ValueError(f"Failed to fetch data for occurrence ID {self.occurrence_id}")
-
+        
     def fetch_organization_data(self):
         organization_key = self.data.get('publishingOrgKey')
+        print(organization_key)
         if organization_key:
-            return registry.organizations(organization_key)
+            return registry.organizations(uuid=organization_key)
         return {}
 
     def fetch_dataset_data(self):
         dataset_key = self.data.get('datasetKey')
         if dataset_key:
-            return registry.datasets(dataset_key)
+            return registry.datasets(uuid=dataset_key)
         return {}
 
     def fetch_species_data(self):
@@ -73,53 +89,32 @@ class GBIFParser(JSONParser):
         integrated_data['subdivisions'] = self.subdivisions_data
         return integrated_data
 
+    def run(self, dry_run):
+        # Votre logique de traitement ici
+        if dry_run:
+            print("Running in dry run mode")
+        else:
+            print("Running in normal mode")
+        integrated_data = self.integrate_data()
+        print(integrated_data)
+        print(self.total)
+        for item in self.items:
+            print(self.get_geom(item))
 
     mapping = {
         "unique_id_sinp": "id_perm_sinp",
         "unique_id_sinp_grp": "id_perm_grp_sinp",
         "date_min": "eventDate",
         "date_max": "eventDate",
+        "eventDate": "date_min",
+        "eventDate": "date_max",
         "cd_nom": "cd_nom",
         "nom_cite": "species",
-        "count_min": "nombre_min",
-        "count_max": "nombre_max",
-        # "altitude_min": "altitude_min",
-        # "altitude_max": "altitude_max",
-        # "depth_max": "profondeur_min",
+        "count_min": 1,
+        "count_max": 1,
         "observers": "recordedBy",
         "determiner": "recordedBy",
-        # "sample_number_proof": "numero_preuve",
-        # "digital_proof": "preuve_numerique",
-        # "non_digital_proof": "preuve_non_numerique",
-        # "comment_context": "comment_releve",
-        # "comment_description": "comment_occurrence",
         "meta_create_date": "eventDate",
         "meta_update_date": "eventDate",
-        "cd_hab": "code_habitat",
-        "place_name": "nom_lieu",
-        # "precision": "precision",
-        # "grp_method": "methode_regroupement",
-        # "id_nomenclature_info_geo_type": "type_info_geo",
-        # "id_nomenclature_grp_typ": "type_regroupement",
-        # "id_nomenclature_behaviour": "comportement",
-        # "id_nomenclature_obs_technique": "technique_obs",
-        # "id_nomenclature_bio_status": "statut_biologique",
-        # "id_nomenclature_bio_condition": "etat_biologique",
-        # "id_nomenclature_naturalness": "naturalite",
-        # "id_nomenclature_exist_proof": "preuve_existante",
-        # "id_nomenclature_obj_count": "objet_denombrement",
-        # "id_nomenclature_sensitivity": "niveau_sensibilite",
-        # "id_nomenclature_observation_status": "statut_observation",
-        # "id_nomenclature_blurring": "floutage_dee",
-        # "id_nomenclature_source_status": "statut_source",
-        # "id_nomenclature_determination_method": "methode_determination",
+        "place_name": "verbatimLocality",
     }
-
-if __name__ == "__main__":
-    occurrence_id = 4407389321  # Example occurrence ID
-    parser = GBIFParser(occurrence_id)
-    integrated_data = parser.integrate_data()
-    print(integrated_data)
-    print(parser.total)
-    for item in parser.items:
-        print(parser.get_geom(item))
