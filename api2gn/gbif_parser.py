@@ -9,29 +9,30 @@ import requests
 class GBIFParser(JSONParser):
     srid = 4326
     progress_bar = False  # Assuming no progress bar is needed for a single request
+    occurrence_ids = [4407389321]  # Occurence par défaut, Vous pouvez remplacer par une liste dynamique d'IDs
 
     def __init__(self):
+        self.api_filters = {**GBIFParser.api_filters, **self.api_filters}
+        self.mapping = {**GBIFParser.mapping, **self.mapping}
+        self.constant_fields = {
+            **GBIFParser.constant_fields,
+            **self.constant_fields,
+        }
         # Initialize the parent class
-        self.occurrence_id = 4407389321
-        self.data = self.fetch_occurrence_data()
-        self.organization_data = self.fetch_organization_data()
-        self.dataset_data = self.fetch_dataset_data()
-        self.species_data = self.fetch_species_data()
-        self.subdivisions_data = self.fetch_subdivisions_data()
-
         super().__init__()
 
-        # filter to have only new data
-        if self.parser_obj.last_import:
-            self.api_filters[
-                "filter_d_up_date_modification"
-            ] = self.parser_obj.last_import
-        self.validate_mapping()
+        self.occurrence_id = None  # Initialisation
+        self.data = None
+        self.organization_data = None
+        self.dataset_data = None
+        self.species_data = None
+        self.subdivisions_data = None
 
-    def fetch_occurrence_data(self):
-        response = occurrences.get(self.occurrence_id)
-        print(response)  # Imprimez la réponse complète pour inspecter la structure
-        # Adaptez la gestion de la réponse en fonction de la structure observée
+        self.validate_maping()
+
+    def fetch_occurrence_data(self, occurrence_id):
+        response = occurrences.get(occurrence_id)
+        print(response)  # Imprime la réponse complète pour inspecter la structure
         if 'results' in response and len(response['results']) > 0:
             return response['results'][0]
         elif 'data' in response:
@@ -39,8 +40,8 @@ class GBIFParser(JSONParser):
         elif len(response) > 0:
             return response
         else:
-            raise ValueError(f"Failed to fetch data for occurrence ID {self.occurrence_id}")
-        
+            raise ValueError(f"Failed to fetch data for occurrence ID {occurrence_id}")
+
     def fetch_organization_data(self):
         organization_key = self.data.get('publishingOrgKey')
         print(organization_key)
@@ -72,7 +73,7 @@ class GBIFParser(JSONParser):
 
     @property
     def total(self):
-        return 1  # Only one item in this case
+        return len(self.occurrence_ids)  # Nombre total d'occurrences
 
     def get_geom(self, row):
         if 'decimalLatitude' in row and 'decimalLongitude' in row:
@@ -86,30 +87,36 @@ class GBIFParser(JSONParser):
         integrated_data['organization'] = self.organization_data
         integrated_data['dataset'] = self.dataset_data
         integrated_data['species'] = self.species_data
-        integrated_data['subdivisions'] = self.subdivisions_data
+        # integrated_data['subdivisions'] = self.subdivisions_data
         return integrated_data
 
-    def run(self, dry_run):
-        # Votre logique de traitement ici
-        if dry_run:
-            print("Running in dry run mode")
-        else:
-            print("Running in normal mode")
-        integrated_data = self.integrate_data()
-        print(integrated_data)
-        print(self.total)
-        for item in self.items:
-            print(self.get_geom(item))
+    def next_row(self):
+        for occurrence_id in self.occurrence_ids:
+            self.occurrence_id = occurrence_id
+            self.data = self.fetch_occurrence_data(occurrence_id)
+            self.organization_data = self.fetch_organization_data()
+            self.dataset_data = self.fetch_dataset_data()
+            self.species_data = self.fetch_species_data()
+            self.subdivisions_data = self.fetch_subdivisions_data()
+            yield self.data
+
+    # Surcouchage pour test
+    # def run(self, dry_run):
+    #     if dry_run:
+    #         print("Running in dry run mode")
+    #     else:
+    #         print("Running in normal mode")
+    #     integrated_data = self.integrate_data()
+    #     print(integrated_data)
+    #     print(self.total)
+    #     for item in self.items:
+    #         print(self.get_geom(item))
 
     mapping = {
-        "unique_id_sinp": "id_perm_sinp",
-        "unique_id_sinp_grp": "id_perm_grp_sinp",
         "date_min": "eventDate",
         "date_max": "eventDate",
-        "eventDate": "date_min",
-        "eventDate": "date_max",
-        "cd_nom": "cd_nom",
-        "nom_cite": "species",
+        "cd_nom": "speciesKey", # ou taxonID, a vérifier
+        "nom_cite": "scientificName",
         "count_min": 1,
         "count_max": 1,
         "observers": "recordedBy",
@@ -118,3 +125,4 @@ class GBIFParser(JSONParser):
         "meta_update_date": "eventDate",
         "place_name": "verbatimLocality",
     }
+# Mapping a améliorer
