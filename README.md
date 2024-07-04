@@ -19,6 +19,9 @@
     # Ajout du module dans l'interface admin geonature
     geonature install-gn-module ~/api2GN  API2GN 
 
+    # Update de la DB
+    geonature db upgrade api2gn@head
+
 ```
 
 Copier le fichier d'exemple `var/config/parsers.example.py` en `var/config/parsers.py`
