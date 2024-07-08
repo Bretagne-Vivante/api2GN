@@ -18,27 +18,43 @@ def my_custom_func(value):
 class GBIFParserInaturalist(GBIFParser):
     name = "GBIF_INaturalist"
     description = "test intégration GBIF_INaturalist" 
-    url = "" # pas nécessaire car usage de la lib mais obligatoire pour le moment
-    # filter to have only one dataset
-    # api_filters = {"jdd_uuid": "4d331cae-65e4-4948-b0b2-a11bc5bb46c2"}
+    # url = "" # pas nécessaire car usage de la lib pygbif
+
+    limit = 100 # Limit du parser, mettre équivalent du limit de l'API
+    # filter api search occurences
+    # Mettre en commentaire pour utiliser la recherche par id_occurence
+    ## Vous pouvez remplacer les valeurs pour filtrer
+    api_filters = {
+        "datasetKey": "50c9509d-22c7-4a22-a47d-8c48425ef4a7", ## INaturalist research grade
+        "wkt" : "POLYGON((-5.3685 46.16181,-0.53236 46.16181,-0.53236 49.21621,-5.3685 49.21621,-5.3685 46.16181))", ## Polygon Bretagne -> get via url de https://www.gbif.org/occurrence/map?
+        "limit" : "3" , 
+        }
+    
+    # Mettre en commentaire pour utiliser la recherche API
+    ## Vous pouvez remplacer par une liste dynamique d'IDs
+    # occurrence_ids = [4508012001]
+    # occurrence_ids = [4508012001, 4507897058, 4507948047, 4507718106, 4507942081]
+    
+    #--> La recherche par id est prioritaire sur la recherche par filtre
+  
+    # dynamic_fields = {
+    #     # "unique_dataset_id" : "69f26484-08b6-4ccf-aeeb-42124d124fa1", # JDD test Inaturalist
+    #     # "id_dataset" : 705
+    # #    # "occurence_id" : "4407389321",
+    # #     "altitude_min": my_custom_func
+    # }
+
     # override existant GeoNatureParser mapping
     # the key is the name of the column is synthese
     # the value could be a str of the column in the API or a dict for a custom value
-    occurrence_ids = [4407389321] ## Vous pouvez remplacer par une liste dynamique d'IDs
-    dynamic_fields = {
-        # "unique_dataset_id" : "69f26484-08b6-4ccf-aeeb-42124d124fa1", # JDD test Inaturalist
-        # "id_dataset" : 705
-    #    # "occurence_id" : "4407389321",
-    #     "altitude_min": my_custom_func
-    }
-    
+
     mapping = {
         # "unique_id_sinp": "id_perm_sinp",
         # "unique_id_sinp_grp": "id_perm_grp_sinp",
         "date_min": "eventDate",
         "date_max": "eventDate",
         "nom_cite": "scientificName",
-
+        # "cd_nom" : "taxonID",
         "observers": "recordedBy",
         "determiner": "recordedBy",
         "meta_create_date": "eventDate",
@@ -52,6 +68,6 @@ class GBIFParserInaturalist(GBIFParser):
         "id_dataset": 705, # Creer JDD test, a terme récupérer les métadonnées et creer JDD en auto
         "count_min": 1, # Non disponible dans api
         "count_max": 1, # Non disponible dans api
-        "cd_nom":  4001,
+        # "cd_nom":  4001,
 
     }
