@@ -7,8 +7,44 @@ from api2gn.parsers import JSONParser
 import json  
 import requests
 
+
+def fetch_taxref_cd_nom(self):
+    try:
+        # print('fetch_taxref_cd_nom self')
+        response = occurrences.get(self['key'])
+        # print(response['taxonKey'])
+        # print('fetch_taxref_cd_nom self key')
+        url = "https://taxref.mnhn.fr/api/taxa/findByExternalId?externalDbId=gbif&externalId=" + str(response['taxonKey'])
+        
+        response = requests.get(url)
+        response.raise_for_status()
+        response = response.json()
+        # print('fetch_taxref_cd_nom')
+        # print(response['referenceId'])
+        
+        if len(str(response['referenceId'])) == 0:
+            return '183716  ' ## animalia
+        else:
+            return str(response['referenceId'])
+    except Exception as e:
+        # Handle the error and return a default value or an error code
+        print(f"An error occurred: {e}")
+        response = occurrences.get(self['key'])
+        url = "https://taxref.mnhn.fr/api/taxa/fuzzyMatch?term=" + str(response['scientificName'])
+        print(response)
+
+        response = requests.get(url)
+        response.raise_for_status()
+        response = response.json()
+        
+        # Access the referenceId in the JSON response
+        reference_id = response['_embedded']['taxa'][0]['referenceId']
+        
+        # Return the referenceId as a string
+        return str(reference_id)
+
+
 class GBIFParser(JSONParser):
-    # limit = 100
     srid = 4326
     progress_bar = False  # useless multiple single request
     occurrence_ids = []  # Occurence par défaut 
@@ -34,12 +70,10 @@ class GBIFParser(JSONParser):
 
         self.validate_maping()
 
-        # self.fetch_occurrence_ids_search()
         if len(self.occurrence_ids) < 1 :
             self.occurrence_ids = self.fetch_occurrence_ids_search()
             print("Liste des IDs d'occurrence :", self.occurrence_ids)
 
-        # self.fetch_taxref_cd_nom()
         
     def fetch_occurrence_ids_search(self):
         occurrence_ids = []
@@ -98,22 +132,6 @@ class GBIFParser(JSONParser):
             return species.name_usage(key=taxon_key)
         return {}
     
-    def fetch_taxref_cd_nom(self, occurrence_id):
-        print('fetch_taxref_cd_nom self' )
-        print(self)
-        print(type(self))
-        print('fetch_taxref_cd_nom self data' )
-        response = occurrences.get(occurrence_id)
-        print(response['taxonKey'])
-        # print('fetch_taxref_cd_nom self key')
-        url = "https://taxref.mnhn.fr/api/taxa/findByExternalId?externalDbId=gbif&externalId="+str(response['taxonKey'])
-        # url = "https://taxref.mnhn.fr/api/taxa/findByExternalId?externalDbId=gbif&externalId=2492462"
-        response = requests.get(url)
-        response.raise_for_status()
-        response = response.json()
-        print('fetch_taxref_cd_nom')
-        print(response['referenceId'])
-        return str(response['referenceId'])
 
     def fetch_subdivisions_data(self):
         url = "https://api.gbif.org/v1/geocode/gadm/FRA.3_1/subdivisions"
@@ -157,7 +175,6 @@ class GBIFParser(JSONParser):
             self.dataset_data = self.fetch_dataset_data()
             self.species_data = self.fetch_species_data()
             self.subdivisions_data = self.fetch_subdivisions_data()
-            self.cd_nom = self.fetch_taxref_cd_nom(occurrence_id)
             yield self.data
 
     # Surcouchage pour test
@@ -173,11 +190,11 @@ class GBIFParser(JSONParser):
     #     else:
     #         print("Running in normal mode")
 
+### Mapping a améliorer
     mapping = {
         # "unique_id_sinp" : "identifier",
         "date_min": "eventDate",
         "date_max": "eventDate",
-        # "cd_nom": "cd_nom", # ou taxonID, a vérifier
         "nom_cite": "scientificName",
         "count_min": 1,
         "count_max": 1,
@@ -186,20 +203,14 @@ class GBIFParser(JSONParser):
         "meta_create_date": "eventDate",
         "meta_update_date": "eventDate",
         "place_name": "verbatimLocality",
+        "entity_source_pk_value": "catalogNumber",
     }
     dynamic_fields = {
         # "unique_dataset_id" : "69f26484-08b6-4ccf-aeeb-42124d124fa1", # JDD test Inaturalist
         # "id_dataset" : 705
-       # "occurence_id" : "4407389321",
+        # "occurence_id" : "4407389321",
         # "altitude_min": my_custom_func
         
-        ### NEED HELP ###
-        "cd_nom" : {"key": "key", "func": fetch_taxref_cd_nom}
-        # "cd_nom" :  fetch_taxref_cd_nom
-        # "cd_nom" : {"func": fetch_taxref_cd_nom}
-        # "cd_nom" : {"func": fetch_taxref_cd_nom()}
-        # "cd_nom" :  row["cd_nom"]
-         
+        "cd_nom": fetch_taxref_cd_nom        
     }
 
-# Mapping a améliorer
